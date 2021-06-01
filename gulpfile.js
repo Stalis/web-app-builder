@@ -154,11 +154,11 @@ exports.buildCssApps = function buildCssApps () {
 };
 
 exports.watchJs = function watchJs () {
-    gulp.watch(path.join(paths.js.src, '**', '*.js'), buildJsApps);
+    gulp.watch(path.join(paths.js.src, '**', '*.js'), exports.buildJsApps);
 };
 
 exports.watchCss = function watchCss () {
-    gulp.watch(path.join(paths.css.src, '**', '*.css'), buildCssApps);
+    gulp.watch(path.join(paths.css.src, '**', '*.css'), exports.buildCssApps);
 };
 
 exports.cleanJs = function cleanJs (cb) {
