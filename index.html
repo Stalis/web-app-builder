@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Web App Builder Test</title>
+        <link rel="stylesheet" href="wwwroot/dist/css/vendor.css">
+        <link rel="stylesheet" href="wwwroot/dist/css/home/style.css">
+        <script src="wwwroot/dist/js/vendor.js"></script>
+    </head>
+    <body>
+        <div id="root">
+            <b-card>
+                <h2>Hello, {{user}}</h2>
+                <object-viewer v-model="userData"></object-viewer>
+                <p>User data:</p>
+                <b-container>
+                    <b-row>
+                        <b-col cols=2>First name:</b-col>
+                        <b-col cols=2>{{userData.firstName}}</b-col>
+                    </b-row>
+                    <b-row>
+                        <b-col cols=2>Last name:</b-col>
+                        <b-col cols=2>{{userData.lastName}}</b-col>
+                    </b-row>
+                    <b-row>
+                        <b-col cols=2>Middle name:</b-col>
+                        <b-col cols=2>{{userData.middleName}}</b-col>
+                    </b-row>
+                </b-container>
+            </b-card>
+        </div>
+
+        <script src="wwwroot/dist/js/home/bundle.js"></script>
+    </body>
+</html>

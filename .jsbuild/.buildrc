@@ -1,0 +1,9 @@
+{
+    "aliases": {
+        "vue": "vue/dist/vue.common.js"
+    },
+    "vendorCss": [
+        "bootstrap/dist/css/bootstrap.min.css",
+        "bootstrap-vue/dist/bootstrap-vue.css"
+    ]
+}

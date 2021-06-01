@@ -24,6 +24,8 @@ const fs = require('fs');
 const path = require('path').posix;
 const resolve = require('resolve');
 
+const { paths, names, jsSources, cssSources } = require('./.jsbuild/scavenger');
+
 const gulp = require('gulp');
 const nop = require('gulp-nop');
 const concat = require('gulp-concat');
@@ -38,8 +40,8 @@ const browserify = require('browserify');
 const babelify = require('babelify');
 
 
-const buildrc = fs.existsSync('.buildrc') 
-                    ? JSON.parse(fs.readFileSync('.buildrc')) 
+const buildrc = fs.existsSync('.jsbuild/.buildrc') 
+                    ? JSON.parse(fs.readFileSync('.jsbuild/.buildrc')) 
                     : { aliases: {} };
 const packageJson = JSON.parse(fs.readFileSync('./package.json'));
 const packageDependencies = Object.keys(packageJson.dependencies)                           // get dependencies names
@@ -48,36 +50,6 @@ const packageDependencies = Object.keys(packageJson.dependencies)               
 
 const vendorCss = buildrc.vendorCss;
 
-const paths = {
-    webRoot: path.join(__dirname, 'wwwroot'),
-    nodeRoot: path.join(__dirname, 'node_modules'),
-};
-
-paths.js = {
-    root: path.join(paths.webRoot, 'dist', 'js'),
-    src: path.join(paths.webRoot, 'src', 'js'),
-};
-
-paths.css = {
-    root: path.join(paths.webRoot, 'dist', 'css'),
-    src: path.join(paths.webRoot, 'src', 'css'),
-};
-
-const names = {
-    js: {
-        entry: 'index.js',
-        common: 'common.js',
-        vendor: 'vendor.js',
-        bundle: 'bundle.js',
-    },
-    css: {
-        entry: 'index.css',
-        common: 'common.css',
-        vendor: 'vendor.css',
-        bundle: 'style.css',
-    },
-};
-
 const browserify_config = {
     debug: debug,
     transform: [
@@ -85,25 +57,10 @@ const browserify_config = {
             presets: ['@babel/preset-env'],
             sourceMapsAbsolute: debug,
         }),
+        'vueify',
         debug ? undefined : 'uglifyify',
     ],
 };
-
-function getFolders(dir) {
-    try {
-        return fs.readdirSync(dir)
-            .filter(function (file) {
-                return fs.statSync(path.join(dir, file)).isDirectory();
-            });
-    } catch (err) {
-        if (err.code === 'ENOENT') {
-            console.error(`No directory: ${dir}`)
-        } else {
-            console.error(err);
-        }
-        return null;
-    }
-}
 
 function resolveLib(lib) {
     let toResolve = lib;
@@ -117,7 +74,7 @@ function resolveLib(lib) {
     return resolve.sync(toResolve);
 }
 
-gulp.task('build:js:vendor', function () {
+exports.buildJsVendor = function buildJsVendor () {
     let b = browserify(browserify_config);
 
     let commonJs = path.join(paths.js.src, names.js.common);
@@ -130,41 +87,35 @@ gulp.task('build:js:vendor', function () {
     return b.bundle()
         .pipe(source(names.js.vendor))
         .pipe(gulp.dest(paths.js.root));
-});
+};
 
-gulp.task('build:js:apps', function () {
-    let folders = getFolders(paths.js.src);
-    if (folders === null) {
+exports.buildJsApps = function buildJsApps () {
+    if (jsSources === null) {
         return gulp.src('.').pipe(nop());
     }
 
-    let tasks = folders.map(folder => {
-        let srcJsPath = path.join(paths.js.src, folder, names.js.entry);
-        if (fs.existsSync(srcJsPath) === false) {
-            return gulp.src('.').pipe(nop());
-        }
-
-        let destFolderPath = path.join(paths.js.root, folder);
-
-        let b = browserify(srcJsPath, browserify_config);
+    let tasks = jsSources.map(jsModule => {
+        let b = browserify(jsModule.src, browserify_config);
+        
         b.external(packageDependencies);
+
+        if (debug) {
+            console.log(`${jsModule.src} => ${jsModule.destFolder}`);
+        }
 
         return b.bundle()
             .pipe(source(names.js.bundle))
-            .pipe(gulp.dest(destFolderPath));
+            .pipe(gulp.dest(jsModule.destFolder));
     });
 
     return merge(tasks);
-});
+};
 
-
-
-gulp.task('build:css:vendor', function () {
+exports.buildCssVendor = function buildCssVendor () {
     let vendorCssPaths = vendorCss?.map(p => resolve.sync(p)) ?? [];
 
     let commonCss = path.join(paths.css.src, names.css.common);
     if (fs.existsSync(commonCss)) {
-        console.log(commonCss);
         vendorCssPaths.push(resolve.sync(commonCss));
     }
     if (vendorCssPaths.length === 0) {
@@ -172,54 +123,58 @@ gulp.task('build:css:vendor', function () {
     }
 
     return gulp.src(vendorCssPaths)
+        .pipe(sass({
+            includePaths: [ 'node_modules/' ],
+        }).on('error', sass.logError))
         .pipe(concat(names.css.vendor))
         .pipe(cleanCSS({ debug: debug }))
         .pipe(gulp.dest(paths.css.root));
-});
+};
 
-gulp.task('build:css:apps', function () {
-    let folders = getFolders(paths.css.src);
-    if (folders === null) {
+exports.buildCssApps = function buildCssApps () {
+    if (cssSources === null) {
         return gulp.src('.').pipe(nop());
     }
 
-    let tasks = folders.map(folder => {
-        
-        let srcCssPath = path.join(paths.css.src, folder, names.css.entry);
-        if (fs.existsSync(srcCssPath) === false) {
-            return gulp.src('.').pipe(nop());
+    let tasks = cssSources.map(cssModule => {
+        if (debug) {
+            console.log(`${cssModule.src} => ${cssModule.destFolder}`);
         }
 
-        let destFolderPath = path.join(paths.css.root, folder);
-        
-        return gulp.src(srcCssPath)
+        return gulp.src(cssModule.src)
+            .pipe(sass({
+                includePaths: [ 'node_modules/' ],
+            }).on('error', sass.logError))
             .pipe(concat(names.css.bundle))
             .pipe(cleanCSS({ debug: debug }))
-            .pipe(gulp.dest(destFolderPath));
-    })
+            .pipe(gulp.dest(cssModule.destFolder));
+    });
+
     return merge(tasks);
-});
+};
 
+exports.watchJs = function watchJs () {
+    gulp.watch(path.join(paths.js.src, '**', '*.js'), buildJsApps);
+};
 
+exports.watchCss = function watchCss () {
+    gulp.watch(path.join(paths.css.src, '**', '*.css'), buildCssApps);
+};
 
-gulp.task('watch:js', function () {
-    gulp.watch(path.join(paths.js.src, '**', '*.js'), gulp.series('build:js:apps'));
-});
-
-gulp.task('watch:css', function () {
-    gulp.watch(path.join(paths.css.src, '**', '*.css'), gulp.series(['build:css:apps']));
-});
-
-gulp.task('clean:js', function (cb) {
+exports.cleanJs = function cleanJs (cb) {
     rimraf(paths.js.root, cb);
-});
+};
 
-gulp.task('clean:css', function (cb) {
+exports.cleanCss = function cleanCss (cb) {
     rimraf(paths.css.root, cb);
-});
+};
 
-gulp.task('clean', gulp.parallel(['clean:js', 'clean:css' ]));
+exports.buildJs = gulp.parallel([ exports.buildJsVendor, exports.buildJsApps ]);
+exports.buildCss = gulp.parallel([ exports.buildCssVendor, exports.buildCssApps ]);
 
-gulp.task('build:js', gulp.parallel(['build:js:vendor', 'build:js:apps']));
-gulp.task('build:css', gulp.parallel([ 'build:css:vendor', 'build:css:apps' ]));
-gulp.task('build', gulp.parallel(['build:js', 'build:css' ]));
+exports.clean = gulp.parallel(exports.cleanJs, exports.cleanCss);
+exports.build = gulp.parallel(exports.buildJs, exports.buildCss);
+
+exports.buildSync = gulp.series([ exports.buildJsVendor, exports.buildJsApps, exports.buildCssVendor, exports.buildCssApps ]);
+
+exports.default = gulp.series(exports.clean, exports.build);
