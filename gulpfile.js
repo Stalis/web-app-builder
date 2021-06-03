@@ -3,7 +3,7 @@
 
 // Единственное, что стоит менять в этом файле. Если true - то все неминифицировано, можно красиво и спокойно отлаживать, false - все упаковано, минифицировано, ток для продакшна
 const debug = true;
-const version = "0.2";
+const version = "0.3";
 
 (function() {
     const headerWidth = 81;
@@ -24,7 +24,7 @@ const fs = require('fs');
 const path = require('path').posix;
 const resolve = require('resolve');
 
-const { paths, names, jsSources, cssSources } = require('./.jsbuild/scavenger');
+const { cwd, paths, names, jsSources, cssSources } = require('./.jsbuild/scavenger');
 
 const gulp = require('gulp');
 const nop = require('gulp-nop');
@@ -77,7 +77,7 @@ function resolveLib(lib) {
 exports.buildJsVendor = function buildJsVendor () {
     let b = browserify(browserify_config);
 
-    let commonJs = path.join(paths.js.src, names.js.common);
+    let commonJs = path.join(cwd, paths.js.src, names.js.common);
     if (fs.existsSync(commonJs)) {
         b.add(commonJs);
     }
@@ -112,9 +112,11 @@ exports.buildJsApps = function buildJsApps () {
 };
 
 exports.buildCssVendor = function buildCssVendor () {
-    let vendorCssPaths = vendorCss?.map(p => resolve.sync(p)) ?? [];
+    let vendorCssPaths = !!vendorCss
+                            ? vendorCss.map(p => resolve.sync(p))
+                            : [];
 
-    let commonCss = path.join(paths.css.src, names.css.common);
+    let commonCss = path.join(cwd, paths.css.src, names.css.common);
     if (fs.existsSync(commonCss)) {
         vendorCssPaths.push(resolve.sync(commonCss));
     }
@@ -154,11 +156,11 @@ exports.buildCssApps = function buildCssApps () {
 };
 
 exports.watchJs = function watchJs () {
-    gulp.watch(path.join(paths.js.src, '**', '*.js'), exports.buildJsApps);
+    gulp.watch(path.join(paths.js.src, '**', '*.js'), { ignoreInitial: false }, exports.buildJsApps);
 };
 
 exports.watchCss = function watchCss () {
-    gulp.watch(path.join(paths.css.src, '**', '*.css'), exports.buildCssApps);
+    gulp.watch(path.join(paths.css.src, '**', '*.css'), { ignoreInitial: false }, exports.buildCssApps);
 };
 
 exports.cleanJs = function cleanJs (cb) {
