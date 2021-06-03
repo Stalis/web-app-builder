@@ -1,7 +1,7 @@
-const path = require('path');
+const path = require('path').posix;
 const fs = require('fs');
 
-const cwd = process.cwd();
+const cwd = '.';
 
 const paths = {
     webRoot: path.join(cwd, 'wwwroot'),
@@ -98,6 +98,7 @@ function getCssSources() {
 
 module.exports = {
 //export default {
+    cwd: process.cwd(),
     paths: paths,
     names: names,
     commonJs: getCommonJs(),
