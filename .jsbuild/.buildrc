@@ -5,5 +5,10 @@
     "vendorCss": [
         "bootstrap/dist/css/bootstrap.min.css",
         "bootstrap-vue/dist/bootstrap-vue.css"
-    ]
+    ],
+    "modulesConfig": {
+        "lib": {
+            "mode": "standalone"
+        }
+    }
 }

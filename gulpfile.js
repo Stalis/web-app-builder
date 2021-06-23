@@ -2,22 +2,28 @@
 "use strict"
 
 // Единственное, что стоит менять в этом файле. Если true - то все неминифицировано, можно красиво и спокойно отлаживать, false - все упаковано, минифицировано, ток для продакшна
-const debug = true;
-const version = "0.3";
+const debug = process.argv.indexOf('--debug') >= 0;
+const version = "0.4";
 
-(function() {
+(function () {
     const headerWidth = 81;
     const headerChar = '=';
     const fullLine = new Array(headerWidth).fill(headerChar).join('');
 
-    const header =  `Gulp Web App Builder By Stalis v${version}`;
-    
+    const header = `Gulp Web App Builder By Stalis v${version}`;
+
     const headerSide = new Array(Math.round((headerWidth - header.length - 2) / 2)).fill(headerChar).join('');
     const headerLine = `${headerSide} ${header} ${headerSide}`;
 
     console.log(fullLine);
     console.log(headerLine);
     console.log(fullLine);
+    
+    if (debug) {
+        const buildMsg = 'DEVELOPMENT Build';
+        const buildMsgSide = new Array(Math.round((headerWidth - buildMsg.length - 2) / 2)).fill(headerChar).join('');
+        console.log(`\x1b[31m${buildMsgSide} ${buildMsg} ${buildMsgSide}\x1b[0m`);
+    }
 })();
 
 const fs = require('fs');
@@ -35,20 +41,39 @@ const source = require('vinyl-source-stream');
 const rimraf = require('rimraf');
 const sass = require('gulp-sass');
 sass.compiler = require('sass');
+const pipeIf = require('gulp-if');
 
 const browserify = require('browserify');
 const babelify = require('babelify');
 
+const _merge = require('lodash/merge');
+const _get = require('lodash/get');
 
-const buildrc = fs.existsSync('.jsbuild/.buildrc') 
-                    ? JSON.parse(fs.readFileSync('.jsbuild/.buildrc')) 
-                    : { aliases: {} };
+const defaulConfig = {
+    aliases: {},
+    modulesConfig: {
+        '.default': {
+            mode: 'bundle',
+        },
+    },
+};
+const buildrc = fs.existsSync('.jsbuild/.buildrc') ? JSON.parse(fs.readFileSync('.jsbuild/.buildrc')) : null;
+
+const config = _merge(defaulConfig, buildrc); 
+
 const packageJson = JSON.parse(fs.readFileSync('./package.json'));
-const packageDependencies = Object.keys(packageJson.dependencies)                           // get dependencies names
-                                  .concat(Object.keys(buildrc.aliases))                     // merge aliases
-                                  .filter((item, pos, arr) => arr.indexOf(item) === pos);   // de-duplication
+const packageDependencies = Object.keys(packageJson.dependencies)  // get dependencies names
+    .concat(Object.keys(config.aliases))                           // merge aliases
+    .filter((item, pos, arr) => arr.indexOf(item) === pos);        // de-duplication
 
-const vendorCss = buildrc.vendorCss;
+const vendorCss = config.vendorCss;
+
+if (!!config.paths && !!config.paths.dist) {
+    paths.js.root = path.join(cwd, config.paths.dist, paths.js.root);
+    paths.css.root = path.join(cwd, config.paths.dist, paths.css.root);
+    jsSources.forEach(v => v.destFolder = path.join(paths.js.root, v.name));
+    cssSources.forEach(v => v.destFolder = path.join(paths.css.root, v.name));
+}
 
 const browserify_config = {
     debug: debug,
@@ -56,6 +81,7 @@ const browserify_config = {
         babelify.configure({
             presets: ['@babel/preset-env'],
             sourceMapsAbsolute: debug,
+            plugins: [ 'babel-plugin-transform-async-to-promises' ],
         }),
         'vueify',
         debug ? undefined : 'uglifyify',
@@ -65,16 +91,16 @@ const browserify_config = {
 function resolveLib(lib) {
     let toResolve = lib;
 
-    if (!!buildrc.aliases) {
-        if (!!buildrc.aliases[lib]) {
-            toResolve = buildrc.aliases[lib];
+    if (!!config.aliases) {
+        if (!!config.aliases[lib]) {
+            toResolve = config.aliases[lib];
         }
     }
 
     return resolve.sync(toResolve);
 }
 
-exports.buildJsVendor = function buildJsVendor () {
+exports.buildJsVendor = function buildJsVendor() {
     let b = browserify(browserify_config);
 
     let commonJs = path.join(cwd, paths.js.src, names.js.common);
@@ -83,13 +109,13 @@ exports.buildJsVendor = function buildJsVendor () {
     }
 
     packageDependencies.forEach(lib => b.require(resolveLib(lib), { expose: lib, transform: false }));
-    
+
     return b.bundle()
         .pipe(source(names.js.vendor))
         .pipe(gulp.dest(paths.js.root));
 };
 
-exports.buildJsApps = function buildJsApps () {
+exports.buildJsApps = function buildJsApps() {
     if (jsSources === null) {
         return gulp.src('.').pipe(nop());
     }
@@ -97,10 +123,17 @@ exports.buildJsApps = function buildJsApps () {
     let tasks = jsSources.map(jsModule => {
         let b = browserify(jsModule.src, browserify_config);
         
-        b.external(packageDependencies);
+        if (_get(config, `modulesConfig.${jsModule.name}.mode`) !== 'standalone') {
+            b.external(packageDependencies);
+        }
 
         if (debug) {
+            console.log(jsModule.name, _get(config, `modulesConfig.${jsModule.name}.mode`));
             console.log(`${jsModule.src} => ${jsModule.destFolder}`);
+        }
+
+        if (debug === false) {
+            b.transform({ global: true }, 'uglifyify');
         }
 
         return b.bundle()
@@ -111,10 +144,10 @@ exports.buildJsApps = function buildJsApps () {
     return merge(tasks);
 };
 
-exports.buildCssVendor = function buildCssVendor () {
+exports.buildCssVendor = function buildCssVendor() {
     let vendorCssPaths = !!vendorCss
-                            ? vendorCss.map(p => resolve.sync(p))
-                            : [];
+        ? vendorCss.map(p => resolve.sync(p))
+        : [];
 
     let commonCss = path.join(cwd, paths.css.src, names.css.common);
     if (fs.existsSync(commonCss)) {
@@ -126,14 +159,14 @@ exports.buildCssVendor = function buildCssVendor () {
 
     return gulp.src(vendorCssPaths)
         .pipe(sass({
-            includePaths: [ 'node_modules/' ],
+            includePaths: ['node_modules/'],
         }).on('error', sass.logError))
         .pipe(concat(names.css.vendor))
         .pipe(cleanCSS({ debug: debug }))
         .pipe(gulp.dest(paths.css.root));
 };
 
-exports.buildCssApps = function buildCssApps () {
+exports.buildCssApps = function buildCssApps() {
     if (cssSources === null) {
         return gulp.src('.').pipe(nop());
     }
@@ -145,7 +178,7 @@ exports.buildCssApps = function buildCssApps () {
 
         return gulp.src(cssModule.src)
             .pipe(sass({
-                includePaths: [ 'node_modules/' ],
+                includePaths: ['node_modules/'],
             }).on('error', sass.logError))
             .pipe(concat(names.css.bundle))
             .pipe(cleanCSS({ debug: debug }))
@@ -155,28 +188,28 @@ exports.buildCssApps = function buildCssApps () {
     return merge(tasks);
 };
 
-exports.watchJs = function watchJs () {
+exports.watchJs = function watchJs() {
     gulp.watch(path.join(paths.js.src, '**', '*.js'), { ignoreInitial: false }, exports.buildJsApps);
 };
 
-exports.watchCss = function watchCss () {
-    gulp.watch(path.join(paths.css.src, '**', '*.css'), { ignoreInitial: false }, exports.buildCssApps);
+exports.watchCss = function watchCss() {
+    gulp.watch(path.join(paths.css.src, '**', '*.scss'), { ignoreInitial: false }, exports.buildCssApps);
 };
 
-exports.cleanJs = function cleanJs (cb) {
+exports.cleanJs = function cleanJs(cb) {
     rimraf(paths.js.root, cb);
 };
 
-exports.cleanCss = function cleanCss (cb) {
+exports.cleanCss = function cleanCss(cb) {
     rimraf(paths.css.root, cb);
 };
 
-exports.buildJs = gulp.parallel([ exports.buildJsVendor, exports.buildJsApps ]);
-exports.buildCss = gulp.parallel([ exports.buildCssVendor, exports.buildCssApps ]);
+exports.buildJs = gulp.parallel([exports.buildJsVendor, exports.buildJsApps]);
+exports.buildCss = gulp.parallel([exports.buildCssVendor, exports.buildCssApps]);
 
 exports.clean = gulp.parallel(exports.cleanJs, exports.cleanCss);
 exports.build = gulp.parallel(exports.buildJs, exports.buildCss);
 
-exports.buildSync = gulp.series([ exports.buildJsVendor, exports.buildJsApps, exports.buildCssVendor, exports.buildCssApps ]);
+exports.buildSync = gulp.series([exports.buildJsVendor, exports.buildJsApps, exports.buildCssVendor, exports.buildCssApps]);
 
 exports.default = gulp.series(exports.clean, exports.build);
