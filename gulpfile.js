@@ -41,7 +41,6 @@ const source = require('vinyl-source-stream');
 const rimraf = require('rimraf');
 const sass = require('gulp-sass');
 sass.compiler = require('sass');
-const pipeIf = require('gulp-if');
 
 const browserify = require('browserify');
 const babelify = require('babelify');
@@ -57,7 +56,7 @@ const defaulConfig = {
         },
     },
 };
-const buildrc = fs.existsSync('.jsbuild/.buildrc') ? JSON.parse(fs.readFileSync('.jsbuild/.buildrc')) : null;
+const buildrc = fs.existsSync('.buildrc') ? JSON.parse(fs.readFileSync('.buildrc')) : null;
 
 const config = _merge(defaulConfig, buildrc); 
 
@@ -84,9 +83,14 @@ const browserify_config = {
             plugins: [ 'babel-plugin-transform-async-to-promises' ],
         }),
         'vueify',
-        debug ? undefined : 'uglifyify',
     ],
 };
+
+function uglifyIfDebug(b) {
+    return debug === true
+           ? b
+           : b.transform({ global: true }, 'uglifyify');
+}
 
 function resolveLib(lib) {
     let toResolve = lib;
@@ -110,7 +114,9 @@ exports.buildJsVendor = function buildJsVendor() {
 
     packageDependencies.forEach(lib => b.require(resolveLib(lib), { expose: lib, transform: false }));
 
-    return b.bundle()
+    return b
+        .plugin(uglifyIfDebug)
+        .bundle()
         .pipe(source(names.js.vendor))
         .pipe(gulp.dest(paths.js.root));
 };
@@ -121,22 +127,32 @@ exports.buildJsApps = function buildJsApps() {
     }
 
     let tasks = jsSources.map(jsModule => {
-        let b = browserify(jsModule.src, browserify_config);
+        const mode = _get(config, `modulesConfig.${jsModule.name}.mode`, 
+                        config.modulesConfig['.default'].mode
+        );
+
+        let b = browserify(browserify_config);
+
+        if (mode === 'standalone') {
+            let commonJs = path.join(cwd, paths.js.src, names.js.common);
+            if (fs.existsSync(commonJs)) {
+                b.add(commonJs);
+            }
+        }
+
+        b.add(jsModule.src);
         
-        if (_get(config, `modulesConfig.${jsModule.name}.mode`) !== 'standalone') {
+        if (mode !== 'standalone') {
             b.external(packageDependencies);
         }
 
         if (debug) {
-            console.log(jsModule.name, _get(config, `modulesConfig.${jsModule.name}.mode`));
             console.log(`${jsModule.src} => ${jsModule.destFolder}`);
         }
 
-        if (debug === false) {
-            b.transform({ global: true }, 'uglifyify');
-        }
-
-        return b.bundle()
+        return b
+            .plugin(uglifyIfDebug)
+            .bundle()
             .pipe(source(names.js.bundle))
             .pipe(gulp.dest(jsModule.destFolder));
     });
