@@ -9,13 +9,13 @@ const paths = {
 };
 
 paths.js = {
-    root: path.join(paths.webRoot, 'dist', 'js'),
-    src: path.join(paths.webRoot, 'src', 'js'),
+    root: path.join('js'),
+    src: path.join(cwd, 'src', 'js'),
 };
 
 paths.css = {
-    root: path.join(paths.webRoot, 'dist', 'css'),
-    src: path.join(paths.webRoot, 'src', 'css'),
+    root: path.join('css'),
+    src: path.join(cwd, 'src', 'css'),
 };
 
 const names = {

@@ -6,6 +6,9 @@
         "bootstrap/dist/css/bootstrap.min.css",
         "bootstrap-vue/dist/bootstrap-vue.css"
     ],
+    "paths": {
+        "dist": "./wwwroot/dist"
+    },
     "modulesConfig": {
         "lib": {
             "mode": "standalone"
