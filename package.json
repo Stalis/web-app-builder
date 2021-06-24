@@ -7,8 +7,8 @@
     "build": "gulp build",
     "buildDev": "gulp build --debug",
     "clean": "gulp clean",
-    "watchJs": "gulp watchJs",
-    "watchCss": "gulp watchCss"
+    "watchJs": "gulp watchJs --debug",
+    "watchCss": "gulp watchCss --debug"
   },
   "repository": {
     "type": "git",
@@ -29,7 +29,6 @@
     "gulp": "^4.0.2",
     "gulp-clean-css": "^4.3.0",
     "gulp-concat": "^2.6.1",
-    "gulp-if": "^3.0.0",
     "gulp-merge": "^0.1.1",
     "gulp-nop": "0.0.3",
     "gulp-sass": "^4.1.0",
