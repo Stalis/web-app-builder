@@ -176,6 +176,7 @@ exports.buildCssVendor = function buildCssVendor() {
     return gulp.src(vendorCssPaths)
         .pipe(sass({
             includePaths: ['node_modules/'],
+            quietDeps: true,
         }).on('error', sass.logError))
         .pipe(concat(names.css.vendor))
         .pipe(cleanCSS({ debug: debug }))
@@ -195,6 +196,7 @@ exports.buildCssApps = function buildCssApps() {
         return gulp.src(cssModule.src)
             .pipe(sass({
                 includePaths: ['node_modules/'],
+                quietDeps: true,
             }).on('error', sass.logError))
             .pipe(concat(names.css.bundle))
             .pipe(cleanCSS({ debug: debug }))
